@@ -5,6 +5,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
 import com.yahoo.sketches.theta.{Sketch, UpdateSketch, SetOperation, Union}
+import com.yahoo.sketches.ResizeFactor.{X1}
 import com.yahoo.memory.{Memory, WritableMemory}
 
 
@@ -27,26 +28,34 @@ class DataToSketchUDAF extends UserDefinedAggregateFunction {
   override def update(buffer: MutableAggregationBuffer, input: Row): Unit = {
 
     val value = input.getAs[String](0)
-    if (buffer(0) == null) {
-      val sketch = UpdateSketch.builder.build
-      sketch.update(value)
-      buffer(0) = sketch.toByteArray
+
+    if (value != null) {
+
+      if (buffer(0) == null) {
+        /*https://github.com/DataSketches/sketches-core/issues/121*/
+        val sketch = UpdateSketch.builder.setResizeFactor(X1).build
+        sketch.update(value)
+        buffer(0) = sketch.toByteArray
+      }
+
+      else {
+        val memorySketch = WritableMemory.wrap(buffer.getAs[Array[Byte]](0))
+        val sketch = UpdateSketch.wrap(memorySketch)
+        sketch.update(value)
+        buffer(0) = sketch.toByteArray
+      }
+
     }
-
-    else {
-      val memorySketch = WritableMemory.wrap(buffer.getAs[Array[Byte]](0))
-      val sketch = UpdateSketch.wrap(memorySketch)
-      sketch.update(value)
-      buffer(0) = sketch.toByteArray
-    }
-
-
   }
 
   override def merge(buffer1: MutableAggregationBuffer, buffer2: Row): Unit = {
 
-    if (buffer1(0) == null) {
+    if (buffer1(0) == null && buffer2(0) != null) {
       buffer1(0) = buffer2(0)
+    }
+    else if (buffer1(0) == null && buffer2(0) == null){
+      val union: Union = SetOperation.builder.setResizeFactor(X1).buildUnion
+      buffer1(0) = union.getResult.toByteArray
     }
 
     else if (buffer1(0) != null && buffer2(0) != null){
@@ -56,7 +65,7 @@ class DataToSketchUDAF extends UserDefinedAggregateFunction {
       val sketch1 = Sketch.wrap(memorySketch1)
       val sketch2 = Sketch.wrap(memorySketch2)
 
-      val union: Union = SetOperation.builder.buildUnion
+      val union: Union = SetOperation.builder.setResizeFactor(X1).buildUnion
       union.update(sketch1)
       union.update(sketch2)
       buffer1(0) = union.getResult.toByteArray
