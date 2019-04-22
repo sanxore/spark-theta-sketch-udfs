@@ -8,7 +8,8 @@ import com.yahoo.sketches.theta.{Sketch, UpdateSketch, SetOperation, Union}
 import com.yahoo.memory.{Memory, WritableMemory}
 
 
-class DataToSketchUDAF extends UserDefinedAggregateFunction {
+class DataToSketchUDAF(k:Int=4096) extends UserDefinedAggregateFunction {
+
   override def inputSchema: StructType =
   /* todo can't cast numeric types to binary maybe a spark issue*/
     StructType(StructField("value", StringType) :: Nil)
@@ -28,7 +29,7 @@ class DataToSketchUDAF extends UserDefinedAggregateFunction {
 
     val value = input.getAs[String](0)
     if (buffer(0) == null) {
-      val sketch = UpdateSketch.builder.build
+      val sketch = UpdateSketch.builder.setNominalEntries(k).build
       sketch.update(value)
       buffer(0) = sketch.toByteArray
     }
@@ -56,7 +57,7 @@ class DataToSketchUDAF extends UserDefinedAggregateFunction {
       val sketch1 = Sketch.wrap(memorySketch1)
       val sketch2 = Sketch.wrap(memorySketch2)
 
-      val union: Union = SetOperation.builder.buildUnion
+      val union: Union = SetOperation.builder.setNominalEntries(k).buildUnion
       union.update(sketch1)
       union.update(sketch2)
       buffer1(0) = union.getResult.toByteArray
