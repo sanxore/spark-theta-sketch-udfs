@@ -15,7 +15,7 @@ It contains three UDAFs and a UDF:
 
 ## Workload performance
 
-In this workload we compare speed and accuracy performance between exact and approximate count-distinct
+In this tables we compare speed and accuracy performance between exact and approximate count-distinct in various workloads
 
 | Input volume  | count-distinct | approximation | accuracy |
 | --------------|:--------------:|:-------------:|:--------:|
@@ -68,7 +68,7 @@ val estimate_udf = udf((x: Array[Byte]) => estimate(x))
 spark.udf.register("estimate", estimate_udf)
 ```
 
-## Utilisation:
+## Usage:
 
 ```scala
 import org.apache.spark.sql.functions.udf
